@@ -1,6 +1,17 @@
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { CharacterFilters as CharacterFiltersType, CharacterStatus, CharacterGender } from "@/types/character";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type {
+  CharacterFilters as CharacterFiltersType,
+  CharacterStatus,
+  CharacterGender,
+} from "@/types/character";
+import { Button } from "../ui/button";
 
 type Props = {
   filters: CharacterFiltersType;
@@ -26,6 +37,10 @@ export function CharacterFilters({ filters, onChange }: Props) {
   const handleGenderChange = (value: string) => {
     const gender = value === "all" ? undefined : (value as CharacterGender);
     onChange({ ...filters, gender });
+  };
+
+  const resetFilters = () => {
+    onChange({});
   };
 
   return (
@@ -74,6 +89,7 @@ export function CharacterFilters({ filters, onChange }: Props) {
           <SelectItem value="unknown">Unknown</SelectItem>
         </SelectContent>
       </Select>
+      <Button onClick={resetFilters}>Reset</Button>
     </div>
   );
 }
