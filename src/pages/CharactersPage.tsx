@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { getCharacters } from "@/services/characters";
 import type { Character, CharacterFilters as CharacterFiltersType, CharactersResponse } from "@/types/character";
@@ -10,38 +10,76 @@ export function CharactersPage() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [info, setInfo] = useState<CharactersResponse["info"] | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const [filters, setFilters] = useState<CharacterFiltersType>({});
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const page = Number(searchParams.get("page")) || 1;
+  // Memoize current filters from URL to prevent unnecessary recreations
+  const currentFilters: CharacterFiltersType = useMemo(() => ({
+    name: searchParams.get("name") || undefined,
+    status: (searchParams.get("status") as CharacterFiltersType["status"]) || undefined,
+    species: searchParams.get("species") || undefined,
+    gender: (searchParams.get("gender") as CharacterFiltersType["gender"]) || undefined,
+    page: Number(searchParams.get("page")) || 1,
+  }), [searchParams]);
 
+  // Memoize API filters to prevent unnecessary recreations
+  const apiFilters = useMemo(() => {
+    const filters: CharacterFiltersType = {};
+    if (currentFilters.name) filters.name = currentFilters.name;
+    if (currentFilters.status) filters.status = currentFilters.status;
+    if (currentFilters.species) filters.species = currentFilters.species;
+    if (currentFilters.gender) filters.gender = currentFilters.gender;
+    if (currentFilters.page) filters.page = currentFilters.page;
+    return filters;
+  }, [currentFilters]);
+
+  // Fetch characters whenever API filters change
   useEffect(() => {
     setLoading(true);
-    getCharacters({ page, ...filters })
+    
+    getCharacters(apiFilters)
       .then((data) => {
         setCharacters(data.results);
         setInfo(data.info);
       })
+      .catch((error) => {
+        console.error("Failed to fetch characters:", error);
+        setCharacters([]);
+        setInfo(null);
+      })
       .finally(() => setLoading(false));
-  }, [page, filters]);
+  }, [apiFilters]);
 
-  const handlePageChange = (newPage: number) => {
+  const handlePageChange = useCallback((newPage: number) => {
     if (newPage < 1 || (info && newPage > info.pages)) return;
-    setSearchParams({ page: String(newPage) });
-  };
+    
+    const newParams = new URLSearchParams(searchParams);
+    if (newPage > 1) {
+      newParams.set("page", String(newPage));
+    } else {
+      newParams.delete("page");
+    }
+    setSearchParams(newParams);
+  }, [searchParams, info, setSearchParams]);
 
-  const handleFiltersChange = (newFilters: CharacterFiltersType) => {
-    setFilters(newFilters);
-    setSearchParams({ page: "1" }); // reset to first page when filters change
-  };
+  const handleFiltersChange = useCallback((newFilters: CharacterFiltersType) => {
+    const params = new URLSearchParams();
+    
+    // Add non-empty filters to URL
+    if (newFilters.name) params.set("name", newFilters.name);
+    if (newFilters.status) params.set("status", newFilters.status);
+    if (newFilters.species) params.set("species", newFilters.species);
+    if (newFilters.gender) params.set("gender", newFilters.gender);
+    // Always reset to page 1 when filters change
+    
+    setSearchParams(params);
+  }, [setSearchParams]);
 
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Characters</h1>
 
-      <CharacterFilters filters={filters} onChange={handleFiltersChange} />
+      <CharacterFilters filters={currentFilters} onChange={handleFiltersChange} />
 
       {loading && <p>Loading...</p>}
 
@@ -58,7 +96,7 @@ export function CharactersPage() {
       {info && (
         <div className="mt-6">
           <CharacterPagination
-            currentPage={page}
+            currentPage={currentFilters.page || 1}
             totalPages={info.pages}
             onPageChange={handlePageChange}
           />
